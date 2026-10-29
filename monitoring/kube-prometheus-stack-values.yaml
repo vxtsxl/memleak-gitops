@@ -1,0 +1,31 @@
+# Helm values for prometheus-community/kube-prometheus-stack
+# Alert rules/contact point/policy live in monitoring/alerting/ and are loaded by the Grafana sidecar.
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 24h
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+alertmanager:
+  enabled: false
+grafana:
+  adminPassword: admin-change-me
+  envFromSecret: grafana-slack
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+    alerts:
+      enabled: true
+      label: grafana_alert
+      searchNamespace: ALL
+  additionalDataSources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki.monitoring.svc.cluster.local:3100

@@ -1,0 +1,3 @@
+[bandit]
+# B104 = "binding to all interfaces (0.0.0.0)" - intentionally ignored per the assessment rules
+skips = B104

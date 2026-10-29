@@ -1,0 +1,18 @@
+# ONE Service load-balancing across all three Deployments: it selects only on
+# `app: memleak-app`, which every pod from every version carries.
+apiVersion: v1
+kind: Service
+metadata:
+  name: memleak-app
+  namespace: memleak
+  labels:
+    app: memleak-app
+spec:
+  type: ClusterIP
+  selector:
+    app: memleak-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

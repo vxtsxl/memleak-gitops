@@ -1,0 +1,120 @@
+name: PR Pipeline
+
+# Runs ONLY when a pull request is opened/updated against main.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: flake8 app test
+
+  sast:
+    name: SAST (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      # B104 (bind to 0.0.0.0) is intentionally ignored per the assessment rules
+      - run: bandit -r app -s B104 -ll -f txt
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Unit tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -v
+
+  build-scan:
+    name: Build + scan image (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: memleak-app:py${{ matrix.python-version }}
+          build-args: PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha,scope=py${{ matrix.python-version }}
+          cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
+
+      - name: Smoke test container (non-root + /healthcheck)
+        run: |
+          docker run -d --name smoke -p 8080:8080 memleak-app:py${{ matrix.python-version }}
+          for i in $(seq 1 15); do
+            curl -fsS http://127.0.0.1:8080/healthcheck && break || sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/healthcheck | grep -q healthy
+          test "$(docker exec smoke id -u)" != "0"
+          docker rm -f smoke
+
+      - name: Trivy image vulnerability scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: memleak-app:py${{ matrix.python-version }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          vuln-type: os,library
+
+  # Single required status check for branch protection.
+  pr-gate:
+    name: PR Gate
+    if: always()
+    needs: [lint, sast, secrets, test, build-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job did not succeed
+        run: |
+          echo '${{ toJSON(needs) }}'
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "true" ]; then
+            echo "One or more required jobs failed"; exit 1
+          fi

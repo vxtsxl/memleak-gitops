@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memleak-app-py311
+  namespace: memleak
+  labels:
+    app: memleak-app
+    python-version: "3.11"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: memleak-app
+      python-version: "3.11"
+  template:
+    metadata:
+      labels:
+        app: memleak-app
+        python-version: "3.11"
+    spec:
+      serviceAccountName: memleak-app
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Fail fast (and visibly) if required config/secret is missing
+        - name: preflight-check
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "preflight: APP_ENV=${APP_ENV} LOG_LEVEL=${LOG_LEVEL}"
+              test -n "${APP_ENV}" && test -n "${APP_API_TOKEN}" || { echo "missing config"; exit 1; }
+              echo "preflight OK"
+          envFrom:
+            - configMapRef:
+                name: memleak-app-config
+            - secretRef:
+                name: memleak-app-secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 8Mi}
+            limits: {cpu: 50m, memory: 16Mi}
+      containers:
+        - name: app
+          image: memleak-app-py311      # replaced by kustomize "images" (CI bumps the tag)
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: memleak-app-config
+            - secretRef:
+                name: memleak-app-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 400Mi          # leak reaches this in ~100s -> OOMKilled
+          readinessProbe:
+            httpGet: {path: /healthcheck, port: http}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: {path: /healthcheck, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

@@ -1,0 +1,134 @@
+apiVersion: 1
+groups:
+- orgId: 1
+  name: memleak-sre
+  folder: SRE Alerts
+  interval: 30s
+  rules:
+  - uid: memleak-pod-unready
+    title: MemleakPodNotReady
+    condition: C
+    for: 1m
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: critical
+      app: memleak-app
+    annotations:
+      summary: Pod {{ $labels.pod }} is not Ready (health check failing)
+      description: Pod {{ $labels.pod }} in namespace memleak has been unready for over 1 minute.
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        instant: true
+        expr: kube_pod_status_ready{namespace="memleak",condition="false"} == 1
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+  - uid: memleak-deploy-unavailable
+    title: MemleakDeploymentUnavailable
+    condition: C
+    for: 1m
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: critical
+      app: memleak-app
+    annotations:
+      summary: Deployment {{ $labels.deployment }} has unavailable replicas
+      description: Deployment {{ $labels.deployment }} has had unavailable replicas for over 1 minute.
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        instant: true
+        expr: kube_deployment_status_replicas_unavailable{namespace="memleak"}
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+  - uid: memleak-oomkilled
+    title: MemleakOOMKilled
+    condition: C
+    for: 0s
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: critical
+      app: memleak-app
+    annotations:
+      summary: Pod {{ $labels.pod }} was OOMKilled
+      description: Container {{ $labels.container }} in pod {{ $labels.pod }} hit its 400Mi memory limit and was OOMKilled.
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        instant: true
+        expr: (increase(kube_pod_container_status_restarts_total{namespace="memleak",container="app"}[5m]) > 0) and on (namespace, pod, container) (kube_pod_container_status_last_terminated_reason{namespace="memleak",reason="OOMKilled"}
+          == 1)
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0

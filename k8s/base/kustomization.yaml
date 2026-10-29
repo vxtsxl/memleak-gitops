@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: memleak
+resources:
+  - namespace.yaml
+  - resourcequota.yaml
+  - rbac.yaml
+  - config.yaml
+  - networkpolicy.yaml
+  - service.yaml
+  - pdb.yaml
+  - deployment-py311.yaml
+  - deployment-py312.yaml
+  - deployment-py313.yaml
+
+# The release pipeline rewrites newName/newTag below (see .github/workflows/release-pipeline.yml)
+images:
+  - name: memleak-app-py311
+    newName: ghcr.io/vxtsxl/memleak-app
+    newTag: py3.11-latest
+  - name: memleak-app-py312
+    newName: ghcr.io/vxtsxl/memleak-app
+    newTag: py3.12-latest
+  - name: memleak-app-py313
+    newName: ghcr.io/vxtsxl/memleak-app
+    newTag: py3.13-latest

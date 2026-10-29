@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: memleak-app-config
+  namespace: memleak
+data:
+  APP_ENV: "local"
+  LOG_LEVEL: "INFO"
+---
+# DEMO ONLY. Real secrets must never be committed in plain text: use Sealed Secrets,
+# External Secrets Operator or SOPS in production. The value below is a dummy.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: memleak-app-secret
+  namespace: memleak
+type: Opaque
+stringData:
+  APP_API_TOKEN: "dummy-token-not-a-real-secret"

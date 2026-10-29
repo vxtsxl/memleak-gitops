@@ -1,0 +1,12 @@
+.git
+.github
+k8s
+argocd
+monitoring
+scripts
+docs
+test
+*.md
+**/__pycache__
+.pytest_cache
+.venv

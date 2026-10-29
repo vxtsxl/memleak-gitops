@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: memleak-app
+  namespace: memleak
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: memleak-app

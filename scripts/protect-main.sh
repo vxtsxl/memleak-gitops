@@ -17,7 +17,7 @@ gh api -X POST "repos/${REPO}/rulesets" --input - <<'JSON'
   "enforcement": "active",
   "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
   "bypass_actors": [
-    { "actor_id": 15368, "actor_type": "Integration", "bypass_mode": "always" }
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
   ],
   "rules": [
     { "type": "deletion" },

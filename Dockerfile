@@ -12,6 +12,14 @@ ENV PYTHONUNBUFFERED=1 \
 # Pull in the latest Alpine security patches for the base packages
 RUN apk upgrade --no-cache
 
+# The app is stdlib-only, so pip / setuptools / wheel (and the copies of other packages that
+# setuptools vendors) are dead weight: they only add attack surface and CVEs (Trivy flagged
+# wheel and jaraco.context inside setuptools on the 3.11 image). Remove them, and the
+# ability to install more packages at runtime along with them.
+RUN rm -rf /usr/local/lib/python*/site-packages/* \
+           /usr/local/lib/python*/ensurepip/_bundled \
+    && rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.* /usr/local/bin/wheel
+
 # Dedicated unprivileged user (fixed UID so Kubernetes runAsNonRoot can verify it)
 RUN addgroup -g 10001 -S app && adduser -u 10001 -S -G app -H -s /sbin/nologin app
 

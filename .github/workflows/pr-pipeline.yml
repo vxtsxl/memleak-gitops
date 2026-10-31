@@ -96,14 +96,18 @@ jobs:
           docker rm -f smoke
 
       - name: Trivy image vulnerability scan (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: memleak-app:py${{ matrix.python-version }}
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-          vuln-type: os,library
+        run: |
+          # Run Trivy from its official image (no action version to go stale).
+          # Fixed HIGH/CRITICAL findings fail the build; unfixed ones are ignored.
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            ghcr.io/aquasecurity/trivy:latest image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format table \
+            memleak-app:py${{ matrix.python-version }}
 
   # Single required status check for branch protection.
   pr-gate:

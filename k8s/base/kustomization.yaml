@@ -16,10 +16,10 @@ resources:
 images:
   - name: memleak-app-py311
     newName: ghcr.io/vxtsxl/memleak-app
-    newTag: py3.11-25262f8
+    newTag: py3.11-ab5310e
   - name: memleak-app-py312
     newName: ghcr.io/vxtsxl/memleak-app
-    newTag: py3.12-25262f8
+    newTag: py3.12-ab5310e
   - name: memleak-app-py313
     newName: ghcr.io/vxtsxl/memleak-app
-    newTag: py3.13-25262f8
+    newTag: py3.13-ab5310e

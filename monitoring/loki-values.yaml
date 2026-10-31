@@ -19,8 +19,12 @@ loki:
     retention_period: 24h
 singleBinary:
   replicas: 1
+  # The chart mounts its data volume at /var/loki only when persistence is on; with it off the
+  # container's root filesystem is read-only and Loki crashes ("mkdir /var/loki: read-only
+  # file system"). minikube and kind both ship a default StorageClass, so a small PVC just works.
   persistence:
-    enabled: false
+    enabled: true
+    size: 2Gi
 read: {replicas: 0}
 write: {replicas: 0}
 backend: {replicas: 0}

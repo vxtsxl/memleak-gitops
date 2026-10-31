@@ -85,3 +85,4 @@ kubectl -n memleak run curl --image=curlimages/curl --restart=Never --rm -it \
 - `app.py` is functionally unchanged; only trailing whitespace and PEP8 blank lines were fixed so flake8 passes.
 - `test/test.py` is named `test.py`, so `pytest.ini` adds it to `python_files`.
 - Secret scanning (gitleaks) is free for personal repos; organisation repos need a gitleaks licence key.
+

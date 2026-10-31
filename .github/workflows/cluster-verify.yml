@@ -45,10 +45,35 @@ jobs:
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
           kubectl get nodes -o wide
 
+      - name: Pre-load Redis image (public.ecr.aws rate-limits shared runner IPs with HTTP 429)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml -o /tmp/argocd-install.yaml
+          REDIS_IMG=$(grep -m1 -oE 'image: public\.ecr\.aws/docker/library/redis:[^ ]+' /tmp/argocd-install.yaml | sed 's/^image: //')
+          echo "redis image used by ArgoCD: $REDIS_IMG"
+          TAG="${REDIS_IMG##*:}"
+          loaded=0
+          for src in "$REDIS_IMG" "mirror.gcr.io/library/redis:$TAG" "docker.io/library/redis:$TAG"; do
+            for attempt in 1 2 3; do
+              echo "pulling $src (attempt $attempt)"
+              if docker pull --platform linux/amd64 "$src"; then
+                [ "$src" = "$REDIS_IMG" ] || docker tag "$src" "$REDIS_IMG"
+                loaded=1
+                break 2
+              fi
+              sleep 10
+            done
+          done
+          [ "$loaded" = 1 ]
+          # load into the kind node so the kubelet never has to pull it (tag-only image => IfNotPresent)
+          kind load docker-image "$REDIS_IMG" --name "$KIND_CLUSTER" || {
+            docker save "$REDIS_IMG" | docker exec --privileged -i "${KIND_CLUSTER}-control-plane" ctr -n k8s.io images import --all-platforms -
+          }
+          docker exec "${KIND_CLUSTER}-control-plane" crictl images | grep redis
+
       - name: Install ArgoCD
         run: |
           kubectl create namespace argocd
-          kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl apply -n argocd --server-side -f /tmp/argocd-install.yaml
           # not needed for this demo; saves memory on the runner
           kubectl -n argocd scale deploy argocd-dex-server argocd-notifications-controller argocd-applicationset-controller --replicas=0
           # redis is occasionally slow/stuck on a fresh runner: retry with a pod restart,
